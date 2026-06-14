@@ -1,0 +1,21 @@
+# Godot
+.godot/
+/out/
+export_presets.cfg.bak
+
+# Downloaded toolchain (never commit the engine/templates)
+/godot
+*.tpz
+*.tmp
+
+# Verification tooling (lives in /workspace/verify, never committed)
+/verify/
+/playbooks/
+
+# Local env (anon key is publishable; .env.example documents the shape)
+/.env
+
+# Model binaries are re-fetchable (models/fetch_assets.sh); keep the repo lean.
+/models/*
+!/models/fetch_assets.sh
+!/models/meshy_assets.jsonl
