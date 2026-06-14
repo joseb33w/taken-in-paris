@@ -52,11 +52,15 @@ func _show_tap_to_start() -> void:
 	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
 	panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	root.add_child(panel)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(center)
 	var box := VBoxContainer.new()
-	box.set_anchors_preset(Control.PRESET_CENTER)
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
-	panel.add_child(box)
-	box.add_child(_title("TAKEN IN PARIS", 46, Color(1, 0.84, 0.4)))
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	center.add_child(box)
+	box.add_child(_title("TAKEN IN PARIS", 44, Color(1, 0.84, 0.4)))
 	box.add_child(_title("A stealth-thriller in five districts", 18, Color(0.85, 0.9, 1)))
 	var spacer := Control.new()
 	spacer.custom_minimum_size = Vector2(0, 24)
@@ -277,6 +281,7 @@ func _loading(text: String) -> void:
 func _title(text: String, fsize: int, color: Color) -> Label:
 	var l := Label.new()
 	l.text = text
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	l.add_theme_font_size_override("font_size", fsize)
 	l.add_theme_color_override("font_color", color)
 	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))

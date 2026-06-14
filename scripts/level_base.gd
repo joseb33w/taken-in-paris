@@ -47,6 +47,12 @@ func _build_level() -> void:
 func _level_process(_delta: float) -> void:
 	pass
 
+## Set the on-screen objective line (forwards to the HUD). Levels override the title-card
+## objective with an in-the-moment instruction by calling this.
+func set_objective(text: String) -> void:
+	if hud != null:
+		hud.set_objective(text)
+
 # ---------------------------------------------------------------- common
 
 func _build_common() -> void:
@@ -501,16 +507,21 @@ func _show_title() -> void:
 	var layer := CanvasLayer.new()
 	layer.layer = 25
 	add_child(layer)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(center)
 	var box := VBoxContainer.new()
-	box.set_anchors_preset(Control.PRESET_CENTER)
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
 	var t1 := Label.new()
 	t1.text = str(info.get("name", "")).to_upper()
-	t1.add_theme_font_size_override("font_size", 40)
+	t1.add_theme_font_size_override("font_size", 34)
 	t1.add_theme_color_override("font_color", Color(1, 0.85, 0.4))
 	t1.add_theme_color_override("font_outline_color", Color(0, 0, 0))
 	t1.add_theme_constant_override("outline_size", 6)
 	t1.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	t1.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	t1.custom_minimum_size = Vector2(340, 0)
 	box.add_child(t1)
 	var t2 := Label.new()
 	t2.text = str(info.get("tagline", ""))
@@ -519,8 +530,10 @@ func _show_title() -> void:
 	t2.add_theme_color_override("font_outline_color", Color(0, 0, 0))
 	t2.add_theme_constant_override("outline_size", 4)
 	t2.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	t2.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	t2.custom_minimum_size = Vector2(340, 0)
 	box.add_child(t2)
-	layer.add_child(box)
+	center.add_child(box)
 	box.modulate.a = 0.0
 	var t := box.create_tween()
 	t.tween_property(box, "modulate:a", 1.0, 0.5)

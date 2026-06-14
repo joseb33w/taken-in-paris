@@ -19,3 +19,6 @@ export_presets.cfg.bak
 /models/*
 !/models/fetch_assets.sh
 !/models/meshy_assets.jsonl
+
+# Headless verification harness (lives only in /workspace, never committed)
+/test/
