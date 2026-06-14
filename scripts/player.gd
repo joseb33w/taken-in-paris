@@ -204,6 +204,9 @@ func _open_dossier() -> void:
 	if level != null and level.has_method("open_dossier"):
 		level.call("open_dossier")
 
+func open_dossier_now() -> void:
+	_open_dossier()
+
 func toggle_sneak() -> void:
 	is_sneaking = not is_sneaking
 	if hud != null:
