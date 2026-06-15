@@ -67,6 +67,7 @@ func collect() -> bool:
 	collected = true
 	remove_from_group("interactable")
 	Game.add_clue(clue_id)
+	Audio.sfx("sfx_collect")
 	WorldKit.spawn_burst(get_parent(), global_position + Vector3.UP, _col, 24)
 	var t := create_tween()
 	t.tween_property(self, "scale", Vector3.ZERO, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)

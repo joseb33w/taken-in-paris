@@ -67,9 +67,9 @@
       var u = await currentUser();
       if (!u) throw new Error("not signed in");
       var res = await sb().from(T_PROGRESS)
-        .select("furthest_level,clues_solved,evidence").eq("user_id", u.id).maybeSingle();
+        .select("furthest_level,clues_solved,evidence,flags").eq("user_id", u.id).maybeSingle();
       if (res.error) throw new Error(res.error.message);
-      if (!res.data) return { furthest_level: 1, clues_solved: 0, evidence: [] };
+      if (!res.data) return { furthest_level: 1, clues_solved: 0, evidence: [], flags: {} };
       return res.data;
     },
     async saveProgress(a) {
@@ -78,6 +78,7 @@
       var row = {
         user_id: u.id, furthest_level: a.furthest_level | 0,
         clues_solved: a.clues_solved | 0, evidence: a.evidence || [],
+        flags: a.flags || {},
         updated_at: new Date().toISOString()
       };
       var res = await sb().from(T_PROGRESS).upsert(row, { onConflict: "user_id" });
@@ -135,5 +136,46 @@
     if (r === undefined) return "";
     delete window.__gogiResults[id];
     return r;
+  };
+
+  // ---- Voiced dialogue (Web Speech API). GDScript calls window.gogiSpeak(text, profileJson)
+  // so NPC lines are spoken aloud (a French voice when the device ships one).
+  var __voices = [];
+  function loadVoices() {
+    try { __voices = (window.speechSynthesis && window.speechSynthesis.getVoices()) || []; } catch (e) { __voices = []; }
+  }
+  if (window.speechSynthesis) {
+    loadVoices();
+    try { window.speechSynthesis.onvoiceschanged = loadVoices; } catch (e) {}
+  }
+  function pickVoice(lang) {
+    if (!__voices.length) loadVoices();
+    var want = (lang || "fr").slice(0, 2).toLowerCase();
+    for (var i = 0; i < __voices.length; i++) {
+      var v = __voices[i];
+      if (v.lang && v.lang.slice(0, 2).toLowerCase() === want) return v;
+    }
+    return __voices.length ? __voices[0] : null;
+  }
+  window.gogiSpeak = function (text, profileJson) {
+    try {
+      if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) return 0;
+      var p = {};
+      try { p = profileJson ? JSON.parse(profileJson) : {}; } catch (e) { p = {}; }
+      window.speechSynthesis.cancel();
+      var u = new SpeechSynthesisUtterance(String(text || ""));
+      u.rate = p.rate || 1.0;
+      u.pitch = p.pitch || 1.0;
+      u.volume = (p.volume != null) ? p.volume : 1.0;
+      u.lang = p.lang || "fr-FR";
+      var v = pickVoice(u.lang);
+      if (v) u.voice = v;
+      window.speechSynthesis.speak(u);
+      return 1;
+    } catch (e) { return 0; }
+  };
+  window.gogiStopSpeak = function () {
+    try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) {}
+    return 1;
   };
 })();

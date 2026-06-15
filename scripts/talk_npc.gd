@@ -2,12 +2,17 @@ class_name TalkNPC
 extends Node3D
 ## An informant or suspect you can interrogate in free-form conversation (LLM brain). The
 ## persona carries the NPC's location and a real clue; the first successful exchange logs a
-## testimony clue card into the dossier.
+## testimony clue card into the dossier. NPCs also bark ambient lines and pose talk/sit.
 
 var display_name := "Informant"
 var npc_persona := ""
 var clue_id := ""
 var clue_given := false
+var voice_profile := "informant"
+var greeting := ""
+var seated := false
+var bark_lines: Array = []
+var _bark_cd := 0.0
 
 var _model: Node3D
 var _loco := Locomotion.new()
@@ -33,6 +38,13 @@ func setup(model_path: String, opts: Dictionary = {}) -> void:
 	move_speed = float(opts.get("speed", move_speed))
 	model_yaw_offset = float(opts.get("yaw_offset", 0.0))
 	_base_yaw = float(opts.get("face_yaw", 0.0))
+	voice_profile = str(opts.get("voice", "informant"))
+	greeting = str(opts.get("greeting", ""))
+	seated = bool(opts.get("seated", false))
+	var bl: Variant = opts.get("barks", [])
+	if bl is Array:
+		bark_lines = bl
+	_bark_cd = randf_range(3.0, 10.0)
 	var wp: Variant = opts.get("waypoints", [])
 	if wp is Array:
 		for v in wp:
@@ -67,6 +79,10 @@ func setup(model_path: String, opts: Dictionary = {}) -> void:
 
 func _process(delta: float) -> void:
 	if talking:
+		return
+	_maybe_bark(delta)
+	if seated:
+		_loco.play("sit")
 		return
 	if _scan and _waypoints.size() < 2:
 		_scan_t += delta * _scan_speed
@@ -110,9 +126,32 @@ func can_interact() -> bool:
 func persona() -> String:
 	return npc_persona
 
+func _maybe_bark(delta: float) -> void:
+	if bark_lines.is_empty():
+		return
+	_bark_cd -= delta
+	if _bark_cd > 0.0:
+		return
+	var pl := get_tree().get_first_node_in_group("player")
+	if pl == null or not (pl is Node3D):
+		return
+	if global_position.distance_to((pl as Node3D).global_position) > 7.0:
+		_bark_cd = 1.0
+		return
+	_bark_cd = randf_range(9.0, 17.0)
+	var line := str(bark_lines[randi() % bark_lines.size()])
+	if Voice.bark(line, voice_profile, display_name):
+		_loco.play("gesture")
+
+func voice_key() -> String:
+	return voice_profile
+
+func opening_line() -> String:
+	return greeting if greeting != "" else "Etienne... you should not be here. What do you want?"
+
 func begin_talk(player_pos: Vector3) -> void:
 	talking = true
-	_loco.play("idle")
+	_loco.play("talk")
 	var to := player_pos - global_position
 	to.y = 0.0
 	if to.length() > 0.05:
@@ -120,6 +159,7 @@ func begin_talk(player_pos: Vector3) -> void:
 
 func end_talk() -> void:
 	talking = false
+	_loco.play("sit" if seated else "idle")
 
 func grant_clue() -> String:
 	if clue_id != "" and not clue_given and not Game.has_clue(clue_id):

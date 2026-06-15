@@ -21,6 +21,7 @@ var _hold_bg: Panel
 var _hold_fill: ColorRect
 var _toast: Label
 var _msg: Label
+var _flash: ColorRect
 var _btn_interact: Button
 var _btn_takedown: Button
 var _btn_sneak: Button
@@ -91,6 +92,12 @@ func _ready() -> void:
 	_msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_msg.modulate.a = 0.0
 	_root.add_child(_msg)
+
+	_flash = ColorRect.new()
+	_flash.color = Color(1, 1, 1, 0.0)
+	_flash.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(_flash)
 
 	_btn_interact = _make_button("GRAB", Color(0.2, 0.55, 0.8))
 	_btn_takedown = _make_button("TAKE", Color(0.7, 0.3, 0.3))
@@ -220,6 +227,13 @@ func show_toast(text: String) -> void:
 	var t := _toast.create_tween()
 	t.tween_interval(1.8)
 	t.tween_property(_toast, "modulate:a", 0.0, 0.8)
+
+func photo_flash() -> void:
+	if _flash == null:
+		return
+	_flash.color = Color(1, 1, 1, 0.75)
+	var t := _flash.create_tween()
+	t.tween_property(_flash, "color:a", 0.0, 0.4)
 
 func flash_msg(text: String) -> void:
 	_msg.text = text

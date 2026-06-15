@@ -2,6 +2,8 @@
 .godot/
 /out/
 export_presets.cfg.bak
+*.uid
+/tools_probe.gd
 
 # Downloaded toolchain (never commit the engine/templates)
 /godot
@@ -19,6 +21,11 @@ export_presets.cfg.bak
 /models/*
 !/models/fetch_assets.sh
 !/models/meshy_assets.jsonl
+
+# Audio is synthesized (audio/synth.py) + re-fetchable (models/fetch_assets.sh); keep lean.
+/audio/*.ogg
+/audio/*.import
+!/audio/synth.py
 
 # Headless verification harness (lives only in /workspace, never committed)
 /test/

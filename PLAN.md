@@ -1,42 +1,45 @@
-# TAKEN IN PARIS — build plan
+# TAKEN IN PARIS — expansion plan (round 2: "a living, explorable Paris")
 
-A third-person stealth-thriller built in **Godot 4.6.3**, exported to mobile web
-(Compatibility / WebGL2, `nothreads`). You are Étienne Vasseur, a disgraced French
-intelligence operative with 72 hours to find your kidnapped daughter Margaux by
-"reading Paris itself."
+Building on the shipped 5-district stealth campaign (PR #1). NOT a rewrite — the
+`LevelBase` framework, `Game` spine, Supabase backend, LLM-NPC chat and dual-input
+controller all stay; this round makes the world roamable, alive, audible and voiced.
 
 ## Goal
-A genuinely fun, tense, mobile-playable campaign of **five Parisian districts**,
-unlock-gated, spined by a **CASE DOSSIER**: sneak past guard vision-cones, hold-interact
-to collect glowing clue nodes, interrogate informants in free-form conversation, then
-physically link two clue cards into a **deduction** that unlocks the next district. The
-finale changes based on how many clues were actually solved. Cloud-saved per account so
-progress + evidence survive across devices, plus a global fastest-rescue leaderboard.
+Turn each district from a single-objective corridor into a roamable, densely-dressed
+Parisian neighborhood you investigate: streets full of props, NPCs you can walk up to and
+TALK to (voiced, with subtitles), optional things to DO between objectives, a full
+soundscape, and per-district lighting/mood — kept smooth on mobile web.
 
-## Levels (each a distinct stealth mechanic, compact for mobile pacing)
-1. **Montmartre Rooftops** — tail the kidnapper without entering vision cones; deduce -> L2.
-2. **Marais Bistro** — lift evidence past the waiter's cone, interrogate him; deduce -> L3.
-3. **Louvre After Hours** — dodge camera cones + laser tripwires; crack a cipher -> L4.
-4. **Catacombs** — reach Margaux; it's a trap, alarm trips, timed sprint out; escape -> L5.
-5. **Eiffel Tower Finale** — the mastermind + a helicopter-spool-up clock. Outcome scales
-   with clues solved.
+## Files to touch
+- `export_presets.cfg` — enable `html/experimental_virtual_keyboard` so the mobile soft
+  keyboard appears on the login fields (explicit user request).
+- `scripts/game.gd` — exploration flags + leads persistence (Supabase `flags` jsonb).
+- `scripts/audio.gd` (NEW, autoload `Audio`) — ambience beds, tension-reactive music,
+  one-shot SFX pool; synthesized OGG assets under `audio/`.
+- `scripts/voice.gd` (NEW, autoload `Voice`) + `web/bridge.js` — Web Speech TTS so NPC
+  lines are SPOKEN, plus a subtitle bar.
+- `scripts/dressing.gd` (NEW) — kk_city street-furniture / cars / trees dressing helpers.
+- `scripts/note_node.gd`, `scripts/lock_minigame.gd`, `scripts/eavesdrop_zone.gd` (NEW) —
+  optional activities: hidden clue notes, a lock-pick minigame, eavesdropping.
+- `scripts/char_visual.gd` — talk/gesture/sit/lean locomotion states.
+- `scripts/talk_npc.gd`, `scripts/chat_panel.gd` — voiced replies, ambient barks, seated/
+  talking poses, richer roster wiring.
+- `scripts/level_base.gd` — per-district environment mood + dressing + activity hooks.
+- `scripts/level1..5.gd` — roamable layouts, dense dressing, full NPC casts, activities.
+- `models/` — bespoke realistic rigged cast from Meshy + kk_city dressing; fetch_assets.sh.
+- `supabase/migrations/0003_exploration.sql` — `flags jsonb` on the progress table.
+- `audio/` (NEW) — synthesized ambience/music/SFX OGGs.
 
-## Cast (bespoke, Meshy, rigged idle/walk/run)
-- spy_hero.glb (empty hands), daughter.glb, henchman.glb. Guards: reskinned `realistic`
-  library humanoids.
+## Verification approach
+- Backend: node + supabase-js round-trip — apply 0003, prove `flags` saves/loads, RLS
+  +/- on progress & scores, leaderboard; clean up the test user.
+- Game: Godot web export → smoke verifier + targeted checks (clip-resolution, player +
+  NPC facing under driven movement, collision-vs-mesh, every trigger/activity fires,
+  two-aspect mobile fill, NPC-chat contract + panel-opens headless, audio buses present,
+  keyboard flag in the shipped artifact). Screenshot-critique each district's mood.
+- Independent adversarial QA pass on the exported build.
 
-## Custom landmarks (Meshy)
-- eiffel_tower.glb (skyline + finale), haussmann_cafe.glb (Marais).
-
-## Backend — Supabase (per-app prefix usr_nmexs7bytxq2_taken_in_paris)
-- Instant email+password accounts via app_register RPC (confirmation is on; anon is off).
-- `<prefix>_progress` (own rows) + `<prefix>_scores` (public read, write-own leaderboard).
-- Frontend talks to Supabase through web/bridge.js via JavaScriptBridge.
-
-## Verification
-- Backend: Node + supabase-js round-trip (schema, RLS +/-, leaderboard) with real creds.
-- Game: Godot web export -> smoke verifier + targeted §6 checks; independent QA pass.
-
-## Out of scope (this session)
-- Shooting/combat — hero stays empty-handed by design ("hand him a pistol later").
-- A continue session polishes UI; save + leaderboard wiring stays stable for it.
+## Out of scope (this round)
+- Shooting/combat — Étienne stays empty-handed by design.
+- Pre-recorded voice-acting — dialogue is spoken via the browser TTS engine + subtitles.
+- New backend tables — exploration state rides on the existing progress row (`flags`).

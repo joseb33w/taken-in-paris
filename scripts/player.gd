@@ -3,7 +3,7 @@ extends CharacterBody3D
 ## Third-person stealth controller. Dual input: left-half virtual joystick + WASD to move,
 ## right-half drag + mouse-drag to look. Action buttons are real Controls that consume their
 ## own touch, so dragging to look NEVER triggers interact/takedown. Hold-interact to collect
-## clues; tap to talk; takedown a guard from close behind.
+## clues; tap to talk/read/pick/photograph; takedown a guard from close behind.
 
 const WALK_SPEED := 2.9
 const RUN_SPEED := 5.6
@@ -47,6 +47,7 @@ var _shake := 0.0
 var _cam_base := Vector3.ZERO
 
 func _ready() -> void:
+	add_to_group("player")
 	collision_layer = WorldKit.L_PLAYER
 	collision_mask = WorldKit.L_WORLD
 
@@ -154,12 +155,7 @@ func _update_interaction(delta: float, interact_just: bool) -> void:
 			hud.call("set_prompt", "")
 		return
 	var kind := str(target.call("interact_kind"))
-	if kind == "talk":
-		if hud != null:
-			hud.call("set_prompt", str(target.call("prompt_text")))
-		if interact_just:
-			_open_chat(target)
-	elif kind == "clue":
+	if kind == "clue":
 		if hud != null:
 			hud.call("set_prompt", "Hold to " + str(target.call("prompt_text")).to_lower())
 		if _interact_held:
@@ -175,6 +171,16 @@ func _update_interaction(delta: float, interact_just: bool) -> void:
 			_hold_t = 0.0
 			if hud != null:
 				hud.call("set_hold", 0.0)
+	else:
+		# tap-kinds: talk, note, lock, photo
+		if hud != null:
+			hud.call("set_prompt", str(target.call("prompt_text")))
+		if interact_just:
+			match kind:
+				"talk": _open_chat(target)
+				"note": _open_note(target)
+				"lock": _open_lock(target)
+				"photo": _do_photo(target)
 
 func _nearest_interactable() -> Node:
 	var best: Node = null
@@ -199,6 +205,22 @@ func _collect(target: Node) -> void:
 func _open_chat(target: Node) -> void:
 	if level != null and level.has_method("open_chat"):
 		level.call("open_chat", target)
+
+func _open_note(target: Node) -> void:
+	if level != null and level.has_method("open_note"):
+		level.call("open_note", target)
+
+func _open_lock(target: Node) -> void:
+	if level != null and level.has_method("open_lock"):
+		level.call("open_lock", target)
+
+func _do_photo(target: Node) -> void:
+	if target.has_method("on_photographed"):
+		target.call("on_photographed")
+	Audio.sfx("sfx_camera")
+	if hud != null and hud.has_method("photo_flash"):
+		hud.call("photo_flash")
+	shake(0.08)
 
 func _open_dossier() -> void:
 	if level != null and level.has_method("open_dossier"):
@@ -233,6 +255,7 @@ func try_takedown() -> void:
 			best_d = d
 	if best != null:
 		best.neutralize()
+		Audio.sfx("sfx_takedown")
 		WorldKit.spawn_burst(level if level != null else get_parent(), best.global_position + Vector3.UP, Color(1.0, 0.85, 0.3), 22)
 		shake(0.16)
 		if hud != null:
