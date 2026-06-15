@@ -74,6 +74,10 @@ func _after_tap() -> void:
 	if _busy:
 		return
 	_busy = true
+	Audio.start_music()
+	Audio.ambience("amb_street")
+	Audio.set_tension(0.0)
+	Audio.sfx("sfx_ui")
 	_clear_ui()
 	_loading("Connecting...")
 	var resumed := await Game.try_resume()
@@ -88,9 +92,9 @@ func _show_auth() -> void:
 	var card := _card()
 	card.add_child(_title("OPERATIVE LOGIN", 30, Color(1, 0.85, 0.4)))
 	card.add_child(_subtitle("Sign in to carry your progress across devices, or play as a guest."))
-	var codename := _field("Codename (for the leaderboard)", false)
-	var email := _field("Email", false)
-	var password := _field("Password", true)
+	var codename := _field("Codename (for the leaderboard)", false, LineEdit.KEYBOARD_TYPE_DEFAULT)
+	var email := _field("Email", false, LineEdit.KEYBOARD_TYPE_EMAIL_ADDRESS)
+	var password := _field("Password", true, LineEdit.KEYBOARD_TYPE_PASSWORD)
 	card.add_child(codename)
 	card.add_child(email)
 	card.add_child(password)
@@ -136,10 +140,12 @@ func _do_auth(create: bool, email: String, password: String, codename: String, s
 
 func _show_menu() -> void:
 	_clear_ui()
+	Audio.ambience("amb_street")
+	Audio.set_tension(0.0)
 	var card := _card()
 	card.add_child(_title("TAKEN IN PARIS", 36, Color(1, 0.84, 0.4)))
 	var who := "Guest" if Game.guest else Game.codename
-	card.add_child(_subtitle("Operative: " + who + "   |   Evidence: " + str(Game.evidence.size()) + "   |   Deductions: " + str(Game.clues_solved)))
+	card.add_child(_subtitle("Operative: " + who + "   |   Evidence: " + str(Game.evidence.size()) + "   |   Deductions: " + str(Game.clues_solved) + "   |   Leads: " + str(Game.leads_found().size())))
 	var cont := _menu_button("CONTINUE  (District " + str(Game.furthest_level) + ")", Color(0.2, 0.55, 0.85))
 	cont.pressed.connect(func() -> void: _start_level(Game.furthest_level))
 	card.add_child(cont)
@@ -308,12 +314,17 @@ func _status_label() -> Label:
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	return l
 
-func _field(placeholder: String, secret: bool) -> LineEdit:
+func _field(placeholder: String, secret: bool, kb_type := LineEdit.KEYBOARD_TYPE_DEFAULT) -> LineEdit:
 	var le := LineEdit.new()
 	le.placeholder_text = placeholder
 	le.secret = secret
 	le.custom_minimum_size = Vector2(380, 46)
 	le.add_theme_font_size_override("font_size", 17)
+	# Mobile soft keyboard: requires html/experimental_virtual_keyboard=true in the web
+	# export preset; the typed-letter type hints email/password keyboards on the device.
+	le.virtual_keyboard_enabled = true
+	le.virtual_keyboard_type = kb_type
+	le.clear_button_enabled = true
 	return le
 
 func _menu_button(text: String, color: Color) -> Button:
@@ -322,6 +333,7 @@ func _menu_button(text: String, color: Color) -> Button:
 	b.focus_mode = Control.FOCUS_NONE
 	b.custom_minimum_size = Vector2(380, 50)
 	b.add_theme_font_size_override("font_size", 18)
+	b.pressed.connect(func() -> void: Audio.sfx("sfx_ui"))
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(color.r, color.g, color.b, 0.92)
 	sb.set_corner_radius_all(10)
