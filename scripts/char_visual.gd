@@ -26,7 +26,11 @@ func _build_map() -> void:
 	clip_map["idle"] = _best(list, ["idle", "rest", "stand", "breath"], first)
 	clip_map["walk"] = _best(list, ["walk", "walking"], str(clip_map["idle"]))
 	clip_map["run"] = _best(list, ["sprint", "running", "run", "jog"], str(clip_map["walk"]))
-	clip_map["scared"] = _best(list, ["scared", "fear", "crouch", "sit", "idle"], str(clip_map["idle"]))
+	clip_map["scared"] = _best(list, ["scared", "fear", "crouch", "cower", "sit"], str(clip_map["idle"]))
+	clip_map["talk"] = _best(list, ["talk", "speak", "chat", "gesture", "wave", "point", "yes", "agree"], str(clip_map["idle"]))
+	clip_map["gesture"] = _best(list, ["gesture", "wave", "point", "talk", "clap", "nod"], str(clip_map["idle"]))
+	clip_map["sit"] = _best(list, ["sit", "seated", "sitting", "chair", "rest", "crouch"], str(clip_map["idle"]))
+	clip_map["lean"] = _best(list, ["lean", "idle_lean", "rest", "stand"], str(clip_map["idle"]))
 
 func _best(list: PackedStringArray, keys: Array, fallback: String) -> String:
 	for k in keys:
