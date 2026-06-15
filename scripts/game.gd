@@ -18,6 +18,7 @@ var furthest_level := 1            # highest district unlocked (1..5)
 var clues_solved := 0              # number of CORRECT deductions made (drives the finale)
 var evidence: Array = []           # collected clue cards: {id,level,title,text,kind}
 var current_level := 1
+var flags: Dictionary = {}         # exploration state: notes read, locks picked, leads, trust
 
 # --- rescue timer (global fastest-rescue leaderboard) ---
 var run_elapsed := 0.0
@@ -50,8 +51,8 @@ const DEDUCTIONS := {
 }
 
 const LEVELS := {
-	1: {"key": "montmartre", "name": "Montmartre Rooftops", "tagline": "Tail the kidnapper. Do not be seen.", "script": "res://scripts/level1.gd"},
-	2: {"key": "marais",     "name": "Marais Bistro",        "tagline": "Lift the evidence. Make the waiter talk.", "script": "res://scripts/level2.gd"},
+	1: {"key": "montmartre", "name": "Montmartre", "tagline": "Roam the square. Tail the crew. Don't be seen.", "script": "res://scripts/level1.gd"},
+	2: {"key": "marais",     "name": "The Marais",  "tagline": "Le Corbeau. Lift the evidence. Make the waiter talk.", "script": "res://scripts/level2.gd"},
 	3: {"key": "louvre",     "name": "Louvre After Hours",   "tagline": "Cameras and lasers. Crack the cipher.", "script": "res://scripts/level3.gd"},
 	4: {"key": "catacombs",  "name": "The Catacombs",        "tagline": "A rescue that is a trap. Run before it seals.", "script": "res://scripts/level4.gd"},
 	5: {"key": "eiffel",     "name": "Eiffel Tower Finale",  "tagline": "The mastermind. The clock. Margaux.", "script": "res://scripts/level5.gd"},
@@ -118,6 +119,7 @@ func sign_out() -> void:
 	furthest_level = 1
 	clues_solved = 0
 	evidence = []
+	flags = {}
 	current_level = 1
 	run_elapsed = 0.0
 	auth_changed.emit()
@@ -136,6 +138,14 @@ func load_progress() -> void:
 		elif ev is String and ev != "":
 			var parsed: Variant = JSON.parse_string(ev)
 			evidence = parsed if parsed is Array else []
+		var fl: Variant = d.get("flags", {})
+		if fl is Dictionary:
+			flags = fl
+		elif fl is String and fl != "":
+			var pf: Variant = JSON.parse_string(fl)
+			flags = pf if pf is Dictionary else {}
+		else:
+			flags = {}
 		progress_changed.emit()
 		evidence_changed.emit()
 
@@ -150,6 +160,7 @@ func save_progress(force: bool = false) -> void:
 		"furthest_level": furthest_level,
 		"clues_solved": clues_solved,
 		"evidence": evidence,
+		"flags": flags,
 	})
 
 func submit_score() -> void:
@@ -231,6 +242,46 @@ func clues_for_level(level: int) -> Array:
 		if int(CLUES[id]["level"]) == level:
 			out.append(id)
 	return out
+
+# ---------------------------------------------------------------- exploration flags / leads
+
+func set_flag(key: String, value: Variant = true) -> void:
+	flags[key] = value
+	progress_changed.emit()
+	save_progress()
+
+func has_flag(key: String) -> bool:
+	return flags.has(key) and bool(flags[key])
+
+func get_flag(key: String, default_value: Variant = null) -> Variant:
+	return flags.get(key, default_value)
+
+## Record a lead the player has uncovered by exploring (notes, photos, eavesdropping,
+## picked locks). Drives the "investigative thoroughness" the finale acknowledges.
+func add_lead(id: String) -> void:
+	var raw: Variant = flags.get("leads", [])
+	var arr: Array = raw if raw is Array else []
+	if not arr.has(id):
+		arr.append(id)
+		flags["leads"] = arr
+		progress_changed.emit()
+		save_progress()
+
+func leads_found() -> Array:
+	var raw: Variant = flags.get("leads", [])
+	return raw if raw is Array else []
+
+func adjust_trust(npc: String, delta: int) -> void:
+	var raw: Variant = flags.get("trust", {})
+	var tr: Dictionary = raw if raw is Dictionary else {}
+	tr[npc] = int(tr.get(npc, 0)) + delta
+	flags["trust"] = tr
+	save_progress()
+
+func trust_of(npc: String) -> int:
+	var raw: Variant = flags.get("trust", {})
+	var tr: Dictionary = raw if raw is Dictionary else {}
+	return int(tr.get(npc, 0))
 
 func reset_run_timer() -> void:
 	run_elapsed = 0.0
