@@ -1,7 +1,8 @@
 class_name Dossier
 extends CanvasLayer
 ## The CASE DOSSIER: review collected evidence and physically LINK two clue cards into the
-## deduction that opens the way forward. Works while the world is paused.
+## deduction that opens the way forward. Works while the world is paused. Centered + width-
+## capped to the live viewport so it never clips off a narrow portrait phone.
 
 signal solved(level: int)
 signal closed
@@ -11,8 +12,10 @@ var _selected: Array = []
 var _cards: Dictionary = {}   # id -> Button
 var _panel: PanelContainer
 var _list: VBoxContainer
+var _scroll: ScrollContainer
 var _status: Label
 var _link_btn: Button
+var _content_w := 560.0
 var _solved_already := false
 
 func _ready() -> void:
@@ -20,6 +23,17 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	visible = false
 	_build()
+	get_viewport().size_changed.connect(_fit)
+
+## Cap the panel to the live viewport so it never clips off a narrow portrait phone.
+func _fit() -> void:
+	_content_w = clampf(get_viewport().get_visible_rect().size.x - 28.0, 280.0, 560.0)
+	if _status != null:
+		_status.custom_minimum_size.x = _content_w
+	if _scroll != null:
+		_scroll.custom_minimum_size.x = _content_w
+	for cid in _cards:
+		(_cards[cid] as Control).custom_minimum_size.x = _content_w - 12.0
 
 func _build() -> void:
 	var dim := ColorRect.new()
@@ -29,7 +43,10 @@ func _build() -> void:
 	add_child(dim)
 
 	_panel = PanelContainer.new()
-	_panel.set_anchors_preset(Control.PRESET_CENTER)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(center)
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.07, 0.08, 0.12, 0.98)
 	sb.set_corner_radius_all(12)
@@ -37,7 +54,7 @@ func _build() -> void:
 	sb.border_color = Color(0.5, 0.55, 0.7, 0.6)
 	sb.set_content_margin_all(16)
 	_panel.add_theme_stylebox_override("panel", sb)
-	add_child(_panel)
+	center.add_child(_panel)
 
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 10)
@@ -59,7 +76,8 @@ func _build() -> void:
 	vb.add_child(_status)
 
 	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(580, 360)
+	_scroll = scroll
+	scroll.custom_minimum_size = Vector2(560, 360)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	vb.add_child(scroll)
 	_list = VBoxContainer.new()
@@ -82,6 +100,7 @@ func open(level: int) -> void:
 	_level = level
 	_solved_already = Game.deduction_solved(level)
 	_selected.clear()
+	_fit()
 	_rebuild()
 	visible = true
 
@@ -108,7 +127,7 @@ func _rebuild() -> void:
 		var b := Button.new()
 		b.focus_mode = Control.FOCUS_NONE
 		b.toggle_mode = false
-		b.custom_minimum_size = Vector2(560, 0)
+		b.custom_minimum_size = Vector2(_content_w, 0)
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		b.add_theme_font_size_override("font_size", 15)

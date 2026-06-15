@@ -1,19 +1,30 @@
 class_name NotePanel
 extends CanvasLayer
 ## A small reading overlay for hidden notes / clue scraps. Pauses the world; Etienne reads
-## the line aloud (TTS) the first time, and it persists to the dossier flags.
+## the line aloud (TTS) the first time, and it persists to the dossier flags. Centered +
+## width-capped to the viewport so it never clips a narrow portrait phone.
 
 signal closed
 
 var _title: Label
 var _body: Label
 var _note: Node
+var _vb: VBoxContainer
+var _content_w := 420.0
 
 func _ready() -> void:
 	layer = 21
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	visible = false
 	_build()
+	get_viewport().size_changed.connect(_fit)
+
+func _fit() -> void:
+	_content_w = clampf(get_viewport().get_visible_rect().size.x - 36.0, 260.0, 420.0)
+	if _vb != null:
+		_vb.custom_minimum_size.x = _content_w
+	if _body != null:
+		_body.custom_minimum_size.x = _content_w
 
 func _build() -> void:
 	var dim := ColorRect.new()
@@ -22,7 +33,10 @@ func _build() -> void:
 	dim.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(dim)
 	var panel := PanelContainer.new()
-	panel.set_anchors_preset(Control.PRESET_CENTER)
+	var wrap := CenterContainer.new()
+	wrap.set_anchors_preset(Control.PRESET_FULL_RECT)
+	wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(wrap)
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.96, 0.93, 0.84, 0.99)
 	sb.set_corner_radius_all(6)
@@ -30,8 +44,9 @@ func _build() -> void:
 	sb.border_color = Color(0.5, 0.42, 0.3, 0.9)
 	sb.set_content_margin_all(20)
 	panel.add_theme_stylebox_override("panel", sb)
-	add_child(panel)
+	wrap.add_child(panel)
 	var vb := VBoxContainer.new()
+	_vb = vb
 	vb.add_theme_constant_override("separation", 12)
 	vb.custom_minimum_size = Vector2(420, 0)
 	panel.add_child(vb)
@@ -69,6 +84,7 @@ func open(note: Node) -> void:
 	_note = note
 	_title.text = str(note.get("title"))
 	_body.text = str(note.get("body"))
+	_fit()
 	visible = true
 	Audio.sfx("sfx_note")
 	if note.has_method("mark_found") and not bool(note.get("found")):

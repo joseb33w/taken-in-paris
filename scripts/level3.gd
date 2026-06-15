@@ -159,10 +159,10 @@ func _rope(a: Vector3, b: Vector3) -> void:
 	var rb := BoxMesh.new(); rb.size = Vector3(a.distance_to(b), 0.04, 0.04)
 	rope.mesh = rb
 	rope.material_override = WorldKit.mat(Color(0.6, 0.1, 0.12), 0.7)
-	rope.position = (a + b) * 0.5 + Vector3(0, 0.8, 0)
+	add_child(rope)
+	rope.global_position = (a + b) * 0.5 + Vector3(0, 0.8, 0)
 	rope.look_at(b + Vector3(0, 0.8, 0), Vector3.UP)
 	rope.rotate_object_local(Vector3.UP, PI / 2.0)
-	add_child(rope)
 
 func _artframe(pos: Vector3, yaw: float, color: Color) -> void:
 	var frame := MeshInstance3D.new()
