@@ -3,7 +3,7 @@ extends CanvasLayer
 ## Free-form interrogation. POSTs {persona, messages} to the shared NPC brain and shows the
 ## in-character reply, SPOKEN aloud (TTS, per-NPC voice). Quick-reply chips guarantee it is
 ## playable without typing; the text field allows fully free-form questions. First successful
-## exchange logs a testimony clue.
+## exchange logs a testimony clue. Centered + width-capped to the viewport (portrait-safe).
 
 signal closed
 
@@ -27,6 +27,23 @@ var _send: Button
 var _dots: Label
 var _dot_timer: Timer
 var _dot_n := 0
+var _vb: VBoxContainer
+var _chipflow: FlowContainer
+var _content_w := 600.0
+
+## Cap the panel to the live viewport so it never clips off a narrow portrait phone.
+func _fit() -> void:
+	_content_w = clampf(get_viewport().get_visible_rect().size.x - 28.0, 280.0, 600.0)
+	if _vb != null:
+		_vb.custom_minimum_size.x = _content_w
+	if _scroll != null:
+		_scroll.custom_minimum_size.x = _content_w
+	if _chipflow != null:
+		_chipflow.custom_minimum_size.x = _content_w
+	if _transcript != null:
+		for c in _transcript.get_children():
+			if c.get_child_count() > 0 and c.get_child(0) is Label:
+				(c.get_child(0) as Label).custom_minimum_size.x = _content_w - 40.0
 
 func _ready() -> void:
 	layer = 20
@@ -42,6 +59,7 @@ func _ready() -> void:
 	_dot_timer.timeout.connect(_tick_dots)
 	add_child(_dot_timer)
 	_build()
+	get_viewport().size_changed.connect(_fit)
 
 func _build() -> void:
 	var dim := ColorRect.new()
@@ -51,7 +69,10 @@ func _build() -> void:
 	add_child(dim)
 
 	var panel := PanelContainer.new()
-	panel.set_anchors_preset(Control.PRESET_CENTER)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(center)
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.06, 0.07, 0.1, 0.99)
 	sb.set_corner_radius_all(12)
@@ -59,9 +80,10 @@ func _build() -> void:
 	sb.border_color = Color(0.5, 0.5, 0.65, 0.6)
 	sb.set_content_margin_all(14)
 	panel.add_theme_stylebox_override("panel", sb)
-	add_child(panel)
+	center.add_child(panel)
 
 	var vb := VBoxContainer.new()
+	_vb = vb
 	vb.add_theme_constant_override("separation", 8)
 	vb.custom_minimum_size = Vector2(600, 0)
 	panel.add_child(vb)
@@ -95,6 +117,7 @@ func _build() -> void:
 	var chips := HBoxContainer.new()
 	chips.add_theme_constant_override("separation", 6)
 	var chipflow := FlowContainer.new()
+	_chipflow = chipflow
 	chipflow.custom_minimum_size = Vector2(600, 0)
 	vb.add_child(chipflow)
 	for q in QUICK:
@@ -128,6 +151,7 @@ func open(npc: Node) -> void:
 	for c in _transcript.get_children():
 		c.queue_free()
 	_set_name(_name)
+	_fit()
 	var hello := str(npc.call("opening_line")) if npc.has_method("opening_line") else "Etienne... you should not be here. What do you want?"
 	_add_line(_name, hello, false)
 	Voice.speak(hello, _voice)
@@ -209,7 +233,7 @@ func _add_line(who: String, text: String, mine: bool) -> void:
 	var l := Label.new()
 	l.text = who + ": " + text
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.custom_minimum_size = Vector2(560, 0)
+	l.custom_minimum_size = Vector2(_content_w - 40.0, 0)
 	l.add_theme_font_size_override("font_size", 16)
 	l.add_theme_color_override("font_color", Color(0.8, 0.92, 1.0) if mine else Color(1, 0.9, 0.7))
 	box.add_child(l)

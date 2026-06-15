@@ -3,11 +3,11 @@ extends CanvasLayer
 ## Lock-pick minigame: a marker sweeps a track; tap PICK (or interact) while it's over the
 ## moving sweet-spot to set a pin. Set all the pins to open. A miss costs the pin and nudges
 ## detection. Runs while the world is paused. Drives the marker in _process (no bound tween).
+## The track width fits the live viewport so the panel never clips a narrow portrait phone.
 
 signal closed
 signal solved(node: Node)
 
-const TRACK_W := 460.0
 const MARK_W := 14.0
 
 var _lock: Node
@@ -19,7 +19,9 @@ var _dir := 1.0
 var _speed := 320.0
 var _zone_x := 0.0
 var _zone_w := 90.0
+var _track_w := 440.0
 
+var _vb: VBoxContainer
 var _track: Panel
 var _marker: ColorRect
 var _zone: ColorRect
@@ -31,6 +33,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	visible = false
 	_build()
+	get_viewport().size_changed.connect(_fit)
 
 func _build() -> void:
 	var dim := ColorRect.new()
@@ -38,8 +41,11 @@ func _build() -> void:
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	dim.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(dim)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(center)
 	var panel := PanelContainer.new()
-	panel.set_anchors_preset(Control.PRESET_CENTER)
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.07, 0.08, 0.12, 0.99)
 	sb.set_corner_radius_all(12)
@@ -47,32 +53,32 @@ func _build() -> void:
 	sb.border_color = Color(0.5, 0.55, 0.7, 0.6)
 	sb.set_content_margin_all(18)
 	panel.add_theme_stylebox_override("panel", sb)
-	add_child(panel)
-	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 14)
-	vb.custom_minimum_size = Vector2(TRACK_W, 0)
-	panel.add_child(vb)
+	center.add_child(panel)
+	_vb = VBoxContainer.new()
+	_vb.add_theme_constant_override("separation", 14)
+	_vb.custom_minimum_size = Vector2(_track_w, 0)
+	panel.add_child(_vb)
 	var head := Label.new()
 	head.text = "PICK THE LOCK"
 	head.add_theme_font_size_override("font_size", 24)
 	head.add_theme_color_override("font_color", Color(1, 0.85, 0.4))
 	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vb.add_child(head)
+	_vb.add_child(head)
 	_pin_label = Label.new()
 	_pin_label.add_theme_font_size_override("font_size", 15)
 	_pin_label.add_theme_color_override("font_color", Color(0.85, 0.9, 1))
 	_pin_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vb.add_child(_pin_label)
+	_vb.add_child(_pin_label)
 
 	_track = Panel.new()
-	_track.custom_minimum_size = Vector2(TRACK_W, 40)
+	_track.custom_minimum_size = Vector2(_track_w, 40)
 	var ts := StyleBoxFlat.new()
 	ts.bg_color = Color(0.04, 0.05, 0.07, 1)
 	ts.set_corner_radius_all(6)
 	ts.set_border_width_all(1)
 	ts.border_color = Color(0.4, 0.45, 0.55, 0.6)
 	_track.add_theme_stylebox_override("panel", ts)
-	vb.add_child(_track)
+	_vb.add_child(_track)
 	_zone = ColorRect.new()
 	_zone.color = Color(0.3, 0.85, 0.45, 0.55)
 	_zone.position = Vector2(0, 4)
@@ -88,20 +94,29 @@ func _build() -> void:
 	_status.add_theme_font_size_override("font_size", 14)
 	_status.add_theme_color_override("font_color", Color(0.8, 0.85, 0.95))
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_status.custom_minimum_size = Vector2(TRACK_W, 0)
+	_status.custom_minimum_size = Vector2(_track_w, 0)
 	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vb.add_child(_status)
+	_vb.add_child(_status)
 
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	vb.add_child(row)
+	_vb.add_child(row)
 	var pick := _btn("PICK", Color(0.2, 0.55, 0.85))
 	pick.pressed.connect(_attempt)
 	row.add_child(pick)
 	var give := _btn("BACK OFF", Color(0.4, 0.34, 0.34))
 	give.pressed.connect(close)
 	row.add_child(give)
+
+func _fit() -> void:
+	_track_w = clampf(get_viewport().get_visible_rect().size.x - 44.0, 240.0, 440.0)
+	if _vb != null:
+		_vb.custom_minimum_size.x = _track_w
+	if _track != null:
+		_track.custom_minimum_size.x = _track_w
+	if _status != null:
+		_status.custom_minimum_size.x = _track_w
 
 func open(lock: Node) -> void:
 	_lock = lock
@@ -112,6 +127,7 @@ func open(lock: Node) -> void:
 	_dir = 1.0
 	_active = true
 	visible = true
+	_fit()
 	_status.text = "Tap PICK when the marker is in the green."
 	_new_zone()
 	_update_pins()
@@ -123,7 +139,7 @@ func close() -> void:
 
 func _new_zone() -> void:
 	_zone_w = clampf(110.0 - _pins_done * 12.0, 60.0, 110.0)
-	_zone_x = randf_range(0.0, TRACK_W - MARK_W - _zone_w)
+	_zone_x = randf_range(0.0, maxf(0.0, _track_w - MARK_W - _zone_w))
 	_zone.position = Vector2(_zone_x, 4)
 	_zone.size = Vector2(_zone_w, 32)
 
@@ -136,8 +152,8 @@ func _process(delta: float) -> void:
 	_pos += _dir * _speed * delta
 	if _pos <= 0.0:
 		_pos = 0.0; _dir = 1.0
-	elif _pos >= TRACK_W - MARK_W:
-		_pos = TRACK_W - MARK_W; _dir = -1.0
+	elif _pos >= _track_w - MARK_W:
+		_pos = _track_w - MARK_W; _dir = -1.0
 	_marker.position.x = _pos
 	if Input.is_action_just_pressed("interact") or Input.is_action_just_pressed("takedown"):
 		_attempt()
@@ -179,7 +195,7 @@ func _btn(text: String, color: Color) -> Button:
 	var b := Button.new()
 	b.text = text
 	b.focus_mode = Control.FOCUS_NONE
-	b.custom_minimum_size = Vector2(150, 46)
+	b.custom_minimum_size = Vector2(140, 46)
 	b.add_theme_font_size_override("font_size", 17)
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(color.r, color.g, color.b, 0.92)
