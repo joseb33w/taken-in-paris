@@ -1,8 +1,9 @@
 class_name LevelBase
 extends Node3D
-## Common gameplay frame for a district: environment, player, HUD, dossier, chat, detection
-## aggregation, spotted/respawn, exit gating, and pause-on-overlay. Subclasses override
-## _level_index(), _build_level(), and optionally _is_outdoor()/_level_process().
+## Common gameplay frame for a district: environment, player, HUD, dossier, chat, note +
+## lock overlays, detection aggregation, spotted/respawn, exit gating, pause-on-overlay,
+## district mood + soundscape. Subclasses override _level_index(), _build_level(),
+## _env_profile(), and optionally _is_outdoor()/_level_process().
 
 var level_num := 1
 var main: Node
@@ -11,11 +12,14 @@ var player: Player
 var hud: Hud
 var dossier: Dossier
 var chat: ChatPanel
+var note_panel: NotePanel
+var lock_panel: LockMinigame
 
 var spawn_pos := Vector3.ZERO
 var spawn_yaw := 0.0
 
 var detection := 0.0
+var _base_tension := 0.0
 var _finished := false
 var _spot_lock := 0.0
 var _exit_node: Node3D
@@ -77,6 +81,16 @@ func _build_common() -> void:
 	add_child(chat)
 	chat.closed.connect(_on_overlay_closed)
 
+	note_panel = NotePanel.new()
+	add_child(note_panel)
+	note_panel.closed.connect(_on_overlay_closed)
+
+	lock_panel = LockMinigame.new()
+	add_child(lock_panel)
+	lock_panel.closed.connect(_on_overlay_closed)
+
+	_setup_district_audio()
+
 	_alarm_layer = CanvasLayer.new()
 	_alarm_layer.layer = 30
 	add_child(_alarm_layer)
@@ -86,47 +100,67 @@ func _build_common() -> void:
 	_alarm_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_alarm_layer.add_child(_alarm_rect)
 
+## Per-district mood. Subclasses override to set golden Montmartre evening, neon Marais
+## night, cold Louvre marble, candle-lit catacombs, blue Eiffel night, etc. Any key omitted
+## falls back to the outdoor-night defaults below.
+func _env_profile() -> Dictionary:
+	return {}
+
 func _build_env(outdoor: bool) -> void:
+	var p := _env_profile()
+	var is_out: bool = bool(p.get("outdoor", outdoor))
 	var we := WorldEnvironment.new()
 	var env := Environment.new()
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
-	env.tonemap_exposure = 1.0
-	if outdoor:
+	env.tonemap_exposure = float(p.get("exposure", 1.0))
+	if is_out:
 		env.background_mode = Environment.BG_SKY
 		var sky := Sky.new()
-		var sm := ShaderMaterial.new()
-		sm.shader = load("res://shaders/night_sky.gdshader")
+		var sm := ProceduralSkyMaterial.new()
+		sm.sky_top_color = p.get("sky_top", Color(0.06, 0.08, 0.16))
+		sm.sky_horizon_color = p.get("sky_horizon", Color(0.16, 0.18, 0.26))
+		sm.ground_horizon_color = p.get("sky_horizon", Color(0.16, 0.18, 0.26))
+		sm.ground_bottom_color = p.get("ground", Color(0.05, 0.05, 0.07))
+		sm.sun_angle_max = float(p.get("sun_angle_max", 30.0))
+		sm.sky_energy_multiplier = float(p.get("sky_energy", 1.0))
 		sky.sky_material = sm
 		env.sky = sky
 		env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-		env.ambient_light_sky_contribution = 0.6
-		env.ambient_light_color = Color(0.28, 0.32, 0.45)
-		env.ambient_light_energy = 1.0
+		env.ambient_light_sky_contribution = float(p.get("sky_contrib", 0.6))
+		env.ambient_light_color = p.get("ambient_color", Color(0.28, 0.32, 0.45))
+		env.ambient_light_energy = float(p.get("ambient_energy", 1.0))
 		env.fog_enabled = true
-		env.fog_light_color = Color(0.18, 0.2, 0.32)
-		env.fog_density = 0.018
-		env.fog_sky_affect = 0.2
+		env.fog_light_color = p.get("fog_color", Color(0.18, 0.2, 0.32))
+		env.fog_density = float(p.get("fog_density", 0.016))
+		env.fog_sky_affect = float(p.get("fog_sky_affect", 0.2))
 	else:
 		env.background_mode = Environment.BG_COLOR
-		env.background_color = Color(0.03, 0.035, 0.05)
+		env.background_color = p.get("bg_color", Color(0.03, 0.035, 0.05))
 		env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-		env.ambient_light_color = Color(0.2, 0.22, 0.3)
-		env.ambient_light_energy = 0.7
+		env.ambient_light_color = p.get("ambient_color", Color(0.2, 0.22, 0.3))
+		env.ambient_light_energy = float(p.get("ambient_energy", 0.7))
 		env.fog_enabled = true
-		env.fog_light_color = Color(0.05, 0.06, 0.08)
-		env.fog_density = 0.03
+		env.fog_light_color = p.get("fog_color", Color(0.05, 0.06, 0.08))
+		env.fog_density = float(p.get("fog_density", 0.03))
 	we.environment = env
 	add_child(we)
 
 	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-55.0, 35.0, 0.0)
-	sun.light_color = Color(0.7, 0.78, 1.0) if outdoor else Color(0.5, 0.55, 0.7)
-	sun.light_energy = 0.7 if outdoor else 0.4
+	sun.rotation_degrees = p.get("sun_rot", Vector3(-55.0, 35.0, 0.0))
+	sun.light_color = p.get("sun_color", Color(0.7, 0.78, 1.0) if is_out else Color(0.5, 0.55, 0.7))
+	sun.light_energy = float(p.get("sun_energy", 0.7 if is_out else 0.4))
 	sun.shadow_enabled = true
-	sun.directional_shadow_max_distance = 60.0
+	sun.directional_shadow_max_distance = 70.0
 	add_child(sun)
 
 	get_viewport().msaa_3d = Viewport.MSAA_2X
+
+func _setup_district_audio() -> void:
+	var p := _env_profile()
+	_base_tension = float(p.get("base_tension", 0.0))
+	Audio.start_music()
+	Audio.ambience(str(p.get("ambience", "amb_street")))
+	Audio.set_tension(_base_tension)
 
 func _process(delta: float) -> void:
 	if _finished:
@@ -164,6 +198,8 @@ func _update_detection(delta: float) -> void:
 	detection = clampf(detection, 0.0, 1.0)
 	if hud != null:
 		hud.set_detection(detection)
+	# music tension tracks how close you are to being made
+	Audio.set_tension(clampf(maxf(detection, _base_tension), 0.0, 1.0))
 	if detection >= 1.0:
 		_spotted()
 
@@ -172,6 +208,8 @@ func _spotted() -> void:
 		return
 	detection = 0.0
 	_spot_lock = 1.6
+	Audio.sfx("sfx_spotted")
+	Audio.set_tension(1.0)
 	if hud != null:
 		hud.set_detection(0.0)
 		hud.flash_msg("SPOTTED - get back to cover")
@@ -207,12 +245,29 @@ func open_chat(npc: Node) -> void:
 		npc.call("begin_talk", player.global_position)
 	chat.open(npc)
 
+func open_note(node: Node) -> void:
+	if _finished:
+		return
+	get_tree().paused = true
+	player.control_enabled = false
+	note_panel.open(node)
+
+func open_lock(node: Node) -> void:
+	if _finished:
+		return
+	if node.has_method("can_interact") and not node.call("can_interact"):
+		return
+	get_tree().paused = true
+	player.control_enabled = false
+	lock_panel.open(node)
+
 func _on_overlay_closed() -> void:
 	get_tree().paused = false
 	if player != null:
 		player.control_enabled = true
 
 func _on_deduction_solved(level: int) -> void:
+	Audio.sfx("sfx_deduce")
 	if hud != null:
 		hud.show_toast("Deduction made - the way forward is open.")
 	if _exit_node != null:
@@ -333,6 +388,34 @@ func spawn_talker(model_path: String, pos: Vector3, opts: Dictionary = {}) -> Ta
 	t.position = pos
 	t.setup(model_path, opts)
 	return t
+
+func spawn_note(id: String, title: String, body: String, pos: Vector3) -> NoteNode:
+	var n := NoteNode.new()
+	add_child(n)
+	n.position = pos
+	n.setup(id, title, body)
+	return n
+
+func spawn_lock(id: String, pos: Vector3, opts: Dictionary = {}) -> LockNode:
+	var l := LockNode.new()
+	add_child(l)
+	l.position = pos
+	l.setup(id, opts)
+	return l
+
+func spawn_photo(id: String, pos: Vector3, opts: Dictionary = {}) -> PhotoTarget:
+	var ph := PhotoTarget.new()
+	add_child(ph)
+	ph.position = pos
+	ph.setup(id, opts)
+	return ph
+
+func spawn_eavesdrop(id: String, pos: Vector3, lines: Array, lead := "", radius := 3.2) -> EavesdropZone:
+	var e := EavesdropZone.new()
+	add_child(e)
+	e.position = pos
+	e.setup(id, lines, lead, radius)
+	return e
 
 func place_player(pos: Vector3, yaw := 0.0) -> void:
 	spawn_pos = pos
