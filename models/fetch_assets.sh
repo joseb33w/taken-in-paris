@@ -1,33 +1,30 @@
 #!/usr/bin/env bash
 # Re-fetch every asset TAKEN IN PARIS uses into models/ + audio/ (run from models/).
-# Custom Meshy characters/landmarks come from the build's R2 bucket; world dressing from the
-# CC0 library; audio is synthesized (audio/synth.py) and mirrored to R2. Godot extracts
-# embedded textures on --import, so only the .glb / .ogg files are needed.
-# After fetching, GLB textures are downscaled (gltf-transform) to keep the web .pck small.
+# Bespoke Meshy characters + custom landmarks come from R2; world dressing from the CC0
+# library; audio is synthesized (audio/synth.py) and mirrored to R2. Godot extracts embedded
+# textures on --import, so only the .glb / .ogg files are needed. The cast GLBs ship
+# texture-optimized (webp @1024); a gltf-transform pass keeps any unoptimized ones small.
 set -e
 cd "$(dirname "$0")"
 GA="https://preview.myapping.com/godot-assets"
-R2="https://preview.myapping.com/cloud-qk4s0rbnain9fg6p8psp/models"
+R2_LM="https://preview.myapping.com/cloud-qk4s0rbnain9fg6p8psp/models"      # custom landmarks
+R2_CAST="https://preview.myapping.com/cloud-l05zerte6knxbfqgrpdq/models"    # bespoke Meshy cast
 R2_AUDIO="https://preview.myapping.com/cloud-l05zerte6knxbfqgrpdq/audio"
 
-echo "custom Meshy assets (hero, daughter, henchman, landmarks)..."
-for n in spy_hero henchman daughter eiffel_tower haussmann_cafe; do
-  curl -sfL "$R2/$n.glb" -o "$n.glb" && echo "  $n.glb" || echo "  MISSING $n.glb (regenerate via Meshy)"
+echo "custom landmarks (Eiffel, Haussmann cafe)..."
+for n in eiffel_tower haussmann_cafe; do
+  curl -sfL "$R2_LM/$n.glb" -o "$n.glb" && echo "  $n.glb" || echo "  MISSING $n.glb (regenerate via Meshy)"
 done
 
-echo "library characters (rigged: idle/walk/run)..."
+echo "bespoke Meshy cast (realistic, rigged: idle/walk/run/talk/gesture/sit/lean, +Z facing)..."
+for n in spy_hero daughter henchman waiter cop flower_seller musician informant; do
+  curl -sfL "$R2_CAST/$n.glb" -o "$n.glb" && echo "  $n.glb" || echo "  MISSING $n.glb (regenerate via Meshy)"
+done
+cp -f daughter.glb kid.glb   # the playing kid reuses the realistic child model
+
+echo "library guards (rank-and-file sentries / cameras)..."
 curl -sfL "$GA/realistic_characters/soldier.glb"  -o guard_soldier.glb
 curl -sfL "$GA/realistic_characters/vanguard.glb" -o guard_vanguard.glb
-curl -sfL "$GA/realistic_characters/warden.glb"   -o informant.glb
-
-echo "Parisian NPC cast (distinct rigged humanoids)..."
-# These are reskinned library humanoids (tinted per-NPC in code). Swap any of these for a
-# bespoke Meshy .glb of the same name to upgrade a specific character's look.
-cp -f informant.glb     waiter.glb
-cp -f guard_vanguard.glb musician.glb
-cp -f guard_soldier.glb  cop.glb
-cp -f informant.glb     flower_seller.glb
-cp -f daughter.glb      kid.glb
 
 echo "kk_city street kit (benches, lamps, hydrants, cars, trees)..."
 for n in bench streetlight firehydrant trash_A trash_B dumpster bush \
@@ -56,12 +53,12 @@ for a in amb_street amb_cafe amb_gallery amb_crypt music_explore music_tension a
   curl -sfL "$R2_AUDIO/$a.ogg" -o "../audio/$a.ogg" || echo "  MISSING audio/$a.ogg (regen: python3 ../audio/synth.py)"
 done
 
-# Downscale GLB textures so the web export stays small (characters 1024, eiffel 512).
+# Keep the web export small: downscale any GLB textures over 1024 (the cast already ships
+# at 1024; the Eiffel landmark goes to 512).
 if command -v npx >/dev/null 2>&1; then
   echo "optimizing GLB textures (gltf-transform)..."
   GT="npx --yes @gltf-transform/cli@latest"
-  for m in spy_hero daughter henchman informant guard_soldier guard_vanguard \
-           waiter musician cop flower_seller kid haussmann_cafe; do
+  for m in haussmann_cafe guard_soldier guard_vanguard; do
     [ -f "$m.glb" ] && $GT resize "$m.glb" "$m.glb" --width 1024 --height 1024 >/dev/null 2>&1 || true
   done
   [ -f eiffel_tower.glb ] && $GT resize eiffel_tower.glb eiffel_tower.glb --width 512 --height 512 >/dev/null 2>&1 || true
