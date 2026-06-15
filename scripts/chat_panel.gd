@@ -1,8 +1,9 @@
 class_name ChatPanel
 extends CanvasLayer
 ## Free-form interrogation. POSTs {persona, messages} to the shared NPC brain and shows the
-## in-character reply. Quick-reply chips guarantee it is playable without typing; the text
-## field allows fully free-form questions. First successful exchange logs a testimony clue.
+## in-character reply, SPOKEN aloud (TTS, per-NPC voice). Quick-reply chips guarantee it is
+## playable without typing; the text field allows fully free-form questions. First successful
+## exchange logs a testimony clue.
 
 signal closed
 
@@ -12,6 +13,7 @@ const QUICK := ["Who took my daughter?", "Where did they go?", "What were they c
 var _npc: Node
 var _persona := ""
 var _name := "Informant"
+var _voice := "informant"
 var _messages: Array = []
 var _busy := false
 var _got_reply := false
@@ -108,6 +110,7 @@ func _build() -> void:
 	_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_input.custom_minimum_size = Vector2(440, 44)
 	_input.add_theme_font_size_override("font_size", 17)
+	_input.virtual_keyboard_enabled = true
 	_input.text_submitted.connect(_on_submit)
 	row.add_child(_input)
 	_send = _chip("ASK", Color(0.2, 0.55, 0.85))
@@ -119,12 +122,15 @@ func open(npc: Node) -> void:
 	_npc = npc
 	_persona = str(npc.call("persona")) if npc.has_method("persona") else ""
 	_name = str(npc.get("display_name")) if npc.get("display_name") != null else "Informant"
+	_voice = str(npc.call("voice_key")) if npc.has_method("voice_key") else "informant"
 	_messages.clear()
 	_got_reply = false
 	for c in _transcript.get_children():
 		c.queue_free()
 	_set_name(_name)
-	_add_line(_name, "Etienne... you should not be here. What do you want?", false)
+	var hello := str(npc.call("opening_line")) if npc.has_method("opening_line") else "Etienne... you should not be here. What do you want?"
+	_add_line(_name, hello, false)
+	Voice.speak(hello, _voice)
 	visible = true
 	_input.text = ""
 	_busy = false
@@ -132,6 +138,7 @@ func open(npc: Node) -> void:
 
 func close() -> void:
 	visible = false
+	Voice.stop()
 	if _npc != null and _npc.has_method("end_talk"):
 		_npc.call("end_talk")
 	closed.emit()
@@ -180,6 +187,7 @@ func _on_response(_result: int, code: int, _headers: PackedStringArray, body: Pa
 		_fail()
 		return
 	_add_line(_name, reply, false)
+	Voice.speak(reply, _voice)
 	_messages.append({"role": "assistant", "content": reply})
 	_trim()
 	if not _got_reply:
